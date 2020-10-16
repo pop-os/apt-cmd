@@ -1,0 +1,24 @@
+[package]
+name = "apt-cmd"
+description = "Async library for interacting with the apt commands"
+version = "0.1.0"
+license = "LGPL-3.0"
+authors = ["Michael Aaron Murphy <mmstick@pm.me>"]
+edition = "2018"
+
+[dependencies]
+as-result = "0.2"
+async-io = "1.1"
+async-process = "1.0"
+async-stream = "0.3"
+derive_more = "0.99"
+futures-lite = "1.11"
+futures-util = "0.3"
+procfs = "0.8"
+thiserror = "1.0"
+surf = "2.0.0"
+async-fs = "1.5.0"
+
+[dev-dependencies]
+anyhow = "1.0"
+
