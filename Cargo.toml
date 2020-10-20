@@ -7,17 +7,23 @@ authors = ["Michael Aaron Murphy <mmstick@pm.me>"]
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0"
 as-result = "0.2"
+async-barrier = "1.1"
+async-fs = "1.5"
+async-global-executor = "1.4"
 async-io = "1.1"
 async-process = "1.0"
 async-stream = "0.3"
 derive_more = "0.99"
-futures-lite = "1.11"
+flume = "0.9"
+futures = "0.3"
 futures-util = "0.3"
+hex = "0.4"
+md-5 = "0.9"
 procfs = "0.8"
+surf = "2.0"
 thiserror = "1.0"
-surf = "2.0.0"
-async-fs = "1.5.0"
 
 [dev-dependencies]
 anyhow = "1.0"

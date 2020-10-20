@@ -6,7 +6,7 @@ use std::{
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum AptUriError {
+pub enum RequestError {
     #[error("apt command failed: {}", _0)]
     Command(io::Error),
     #[error("uri not found in output: {}", _0)]
@@ -26,62 +26,62 @@ pub enum AptUriError {
 }
 
 #[derive(Debug, Clone, Eq)]
-pub struct AptUri {
+pub struct Request {
     pub uri: String,
     pub name: String,
     pub size: u64,
     pub md5sum: String,
 }
 
-impl PartialEq for AptUri {
+impl PartialEq for Request {
     fn eq(&self, other: &Self) -> bool {
         self.uri == other.uri
     }
 }
 
-impl Hash for AptUri {
+impl Hash for Request {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.uri.hash(state);
     }
 }
 
-impl FromStr for AptUri {
-    type Err = AptUriError;
+impl FromStr for Request {
+    type Err = RequestError;
 
     fn from_str(line: &str) -> Result<Self, Self::Err> {
         let mut words = line.split_whitespace();
 
         let mut uri = words
             .next()
-            .ok_or_else(|| AptUriError::UriNotFound(line.into()))?;
+            .ok_or_else(|| RequestError::UriNotFound(line.into()))?;
 
         // We need to remove the single quotes that apt-get encloses the URI within.
         if uri.len() <= 3 {
-            return Err(AptUriError::UriInvalid(uri.into()));
+            return Err(RequestError::UriInvalid(uri.into()));
         } else {
             uri = &uri[1..uri.len() - 1];
         }
 
         let name = words
             .next()
-            .ok_or_else(|| AptUriError::NameNotFound(line.into()))?;
+            .ok_or_else(|| RequestError::NameNotFound(line.into()))?;
         let size = words
             .next()
-            .ok_or_else(|| AptUriError::SizeNotFound(line.into()))?;
+            .ok_or_else(|| RequestError::SizeNotFound(line.into()))?;
         let size = size
             .parse::<u64>()
-            .map_err(|_| AptUriError::SizeParse(size.into()))?;
+            .map_err(|_| RequestError::SizeParse(size.into()))?;
         let mut md5sum = words
             .next()
-            .ok_or_else(|| AptUriError::Md5NotFound(line.into()))?;
+            .ok_or_else(|| RequestError::Md5NotFound(line.into()))?;
 
         if md5sum.starts_with("MD5Sum:") {
             md5sum = &md5sum[7..];
         } else {
-            return Err(AptUriError::Md5Prefix(md5sum.into()));
+            return Err(RequestError::Md5Prefix(md5sum.into()));
         }
 
-        Ok(AptUri {
+        Ok(Request {
             uri: uri.into(),
             name: name.into(),
             size,

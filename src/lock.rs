@@ -1,6 +1,6 @@
 use async_io::Timer;
 use async_stream::stream;
-use futures_lite::stream::{Stream, StreamExt};
+use futures::stream::{Stream, StreamExt};
 use futures_util::pin_mut;
 use std::path::Path;
 use std::time::Duration;

@@ -1,19 +1,20 @@
 #[macro_use]
 extern crate derive_more;
 
-pub mod apt_uri;
+pub mod fetch;
+pub mod hash;
 pub mod lock;
+pub mod request;
 
-use crate::apt_uri::{AptUri, AptUriError};
+use crate::request::{Request, RequestError};
 use as_result::*;
 use async_process::{Child, ChildStdout, Command, ExitStatus, Stdio};
 use async_stream::stream;
-use futures_lite::io::BufReader;
-use futures_lite::prelude::*;
-use futures_lite::stream::{Boxed as BoxedStream, StreamExt};
+use futures::io::BufReader;
+use futures::prelude::*;
+use futures::stream::StreamExt;
 use futures_util::pin_mut;
-use std::{collections::HashSet, io, path::Path};
-use surf::http::{Request, Url};
+use std::{collections::HashSet, io, pin::Pin};
 
 #[derive(Debug)]
 pub enum UpdateEvent {
@@ -53,7 +54,7 @@ impl AptGet {
         return self;
     }
 
-    pub async fn upgrade_uris(mut self) -> io::Result<Result<HashSet<AptUri>, AptUriError>> {
+    pub async fn upgrade_uris(mut self) -> io::Result<Result<HashSet<Request>, RequestError>> {
         lock::apt_lock_wait().await;
 
         self.args(&["--print-uris", "full-upgrade"]);
@@ -71,7 +72,7 @@ impl AptGet {
                 continue;
             }
 
-            let package = match line.parse::<AptUri>() {
+            let package = match line.parse::<Request>() {
                 Ok(package) => package,
                 Err(why) => return Ok(Err(why)),
             };
@@ -84,7 +85,7 @@ impl AptGet {
         Ok(Ok(packages))
     }
 
-    pub async fn update(mut self) -> io::Result<BoxedStream<UpdateEvent>> {
+    pub async fn update(mut self) -> io::Result<Pin<Box<dyn Stream<Item = UpdateEvent>>>> {
         lock::apt_lock_wait().await;
 
         self.arg("update");
@@ -112,7 +113,7 @@ impl AptGet {
             yield UpdateEvent::ExitStatus(child.status().await);
         };
 
-        Ok(stream.boxed())
+        Ok(Box::pin(stream))
     }
 
     pub fn spawn_with_stdout(mut self) -> io::Result<(Child, ChildStdout)> {
@@ -123,30 +124,4 @@ impl AptGet {
             (child, stdout)
         })
     }
-}
-
-pub async fn fetch_upgrades<P: Stream<Item = AptUri>>(
-    client: &surf::Client,
-    packages: P,
-    path: &Path,
-) -> Result<(), surf::Error> {
-    pin_mut!(packages);
-    while let Some(uri) = packages.next().await {
-        let mut resp = client
-            .send(Request::get(Url::parse(&uri.uri).unwrap()))
-            .await?;
-
-        let dest = path.join(&uri.name);
-
-        let parent = dest.parent();
-        if let Some(parent) = parent {
-            async_fs::create_dir_all(parent).await.unwrap();
-        }
-
-        let mut file = async_fs::File::create(&dest).await.unwrap();
-
-        futures_lite::io::copy(&mut resp, &mut file).await.unwrap();
-    }
-
-    Ok(())
 }
