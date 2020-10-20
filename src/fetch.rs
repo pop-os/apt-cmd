@@ -3,6 +3,7 @@ use crate::request::Request as AptRequest;
 use async_global_executor::spawn;
 use async_io::Timer;
 use futures::stream::{Stream, StreamExt};
+use isahc::http::Request;
 use std::{
     future::Future,
     io,
@@ -11,7 +12,6 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use surf::http::{Request, Url};
 use thiserror::Error;
 
 pub type Fetcher = Pin<Box<dyn Future<Output = ()> + Send>>;
@@ -59,7 +59,7 @@ pub enum FetchError {
     Request(#[from] Box<dyn std::error::Error + 'static + Sync + Send>),
 
     #[error("server responded with error: {}", _0)]
-    Response(surf::StatusCode),
+    Response(isahc::http::StatusCode),
 }
 
 pub struct FetchRequest {
@@ -68,14 +68,14 @@ pub struct FetchRequest {
 }
 
 pub struct PackageFetcher {
-    client: surf::Client,
+    client: isahc::HttpClient,
     concurrent: usize,
     delay: Option<u64>,
     retries: u32,
 }
 
 impl PackageFetcher {
-    pub fn new(client: surf::Client) -> Self {
+    pub fn new(client: isahc::HttpClient) -> Self {
         Self {
             client,
             concurrent: 1,
@@ -113,6 +113,8 @@ impl PackageFetcher {
             retries,
         } = self;
 
+        let client = Arc::new(client);
+
         let barrier = Arc::new(async_barrier::Barrier::new(1));
 
         let fetcher =
@@ -135,7 +137,7 @@ impl PackageFetcher {
                         }
 
                         let mut resp = match client
-                            .send(Request::get(Url::parse(&uri.uri).unwrap()))
+                            .send_async(Request::get(&uri.uri).body(()).unwrap())
                             .await
                         {
                             Ok(resp) => resp,
@@ -158,7 +160,7 @@ impl PackageFetcher {
                             }
                         };
 
-                        if let Err(why) = futures::io::copy(&mut resp, &mut file).await {
+                        if let Err(why) = futures::io::copy(resp.body_mut(), &mut file).await {
                             return Err(EventKind::Error(FetchError::Copy(why)));
                         }
 

@@ -14,7 +14,7 @@ fn main() -> anyhow::Result<()> {
     const RETRIES: u32 = 3;
 
     let future = async move {
-        let client = surf::Client::new();
+        let client = isahc::HttpClient::new().unwrap();
         let path = Path::new("./packages/");
         let (fetch_tx, fetch_rx) = flume::bounded(CONCURRENT_FETCHES);
 

@@ -13,16 +13,19 @@ async-barrier = "1.1"
 async-fs = "1.5"
 async-global-executor = "1.4"
 async-io = "1.1"
-async-process = "1.0"
-async-stream = "0.3"
+# Blocked on Ubuntu
+async-process = "=0.1.1"
+# Blocked on Ubuntu
+async-stream = "=0.2"
 derive_more = "0.99"
 flume = "0.9"
 futures = "0.3"
 futures-util = "0.3"
 hex = "0.4"
+# Can switch to surf 2.0.0 after Rust 1.46 reaches Ubuntu
+isahc = "0.9.10"
 md-5 = "0.9"
 procfs = "0.8"
-surf = "2.0"
 thiserror = "1.0"
 
 [dev-dependencies]
