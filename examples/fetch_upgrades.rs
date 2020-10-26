@@ -32,7 +32,7 @@ fn main() -> anyhow::Result<()> {
         let sender = async move {
             let packages = AptGet::new()
                 .noninteractive()
-                .upgrade_uris()
+                .fetch_uris(&["full-upgrade"])
                 .await
                 .context("failed to spawn apt-get command")?
                 .context("failed to fetch package URIs from apt-get")?;

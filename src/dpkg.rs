@@ -19,7 +19,7 @@ impl Dpkg {
     }
 
     pub fn configure_all(mut self) -> Self {
-        self.args(&["--configure", "-y"]);
+        self.args(&["--configure", "-a"]);
         self
     }
 
