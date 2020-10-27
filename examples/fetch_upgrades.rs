@@ -4,8 +4,7 @@ use apt_cmd::{
     AptGet,
 };
 
-use async_global_executor::block_on;
-use futures::{future::FutureExt, stream::StreamExt};
+use futures::stream::StreamExt;
 use std::{path::Path, sync::Arc};
 
 fn main() -> anyhow::Result<()> {
@@ -22,7 +21,7 @@ fn main() -> anyhow::Result<()> {
             async_fs::create_dir_all(path).await.unwrap();
         }
 
-        let (fetcher, mut events) = PackageFetcher::new(client)
+        let mut events = PackageFetcher::new(client)
             .concurrent(CONCURRENT_FETCHES)
             .delay_between(DELAY_BETWEEN)
             .retries(RETRIES)
@@ -57,12 +56,10 @@ fn main() -> anyhow::Result<()> {
             Ok::<(), anyhow::Error>(())
         };
 
-        futures::future::try_join3(fetcher.map(Ok), sender, receiver).await?;
-
-        println!("returning");
+        futures::future::try_join(sender, receiver).await?;
 
         Ok(())
     };
 
-    block_on(future)
+    futures::executor::block_on(future)
 }

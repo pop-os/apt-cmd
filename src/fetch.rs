@@ -1,11 +1,9 @@
 use crate::request::Request as AptRequest;
 
-use async_global_executor::spawn;
 use async_io::Timer;
 use futures::stream::{Stream, StreamExt};
 use isahc::http::Request;
 use std::{
-    future::Future,
     io,
     path::{Path, PathBuf},
     pin::Pin,
@@ -14,7 +12,6 @@ use std::{
 };
 use thiserror::Error;
 
-pub type Fetcher = Pin<Box<dyn Future<Output = ()> + Send>>;
 pub type FetchEvents = Pin<Box<dyn Stream<Item = FetchEvent>>>;
 
 #[derive(Debug)]
@@ -103,7 +100,7 @@ impl PackageFetcher {
         self,
         packages: impl Stream<Item = Arc<AptRequest>> + Send + 'static,
         path: Arc<Path>,
-    ) -> (Fetcher, FetchEvents) {
+    ) -> FetchEvents {
         let (tx, rx) = flume::bounded(0);
 
         let Self {
@@ -124,7 +121,7 @@ impl PackageFetcher {
                 let tx = tx.clone();
                 let barrier = barrier.clone();
 
-                spawn(async move {
+                smolscale::spawn(async move {
                     let event_process = || async {
                         let _ = tx.send(FetchEvent::new(uri.clone(), EventKind::Fetching));
 
@@ -198,6 +195,8 @@ impl PackageFetcher {
                 })
             });
 
-        (Box::pin(fetcher), Box::pin(rx.into_stream()))
+        smolscale::spawn(fetcher).detach();
+
+        Box::pin(rx.into_stream())
     }
 }
