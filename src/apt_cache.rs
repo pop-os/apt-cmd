@@ -1,9 +1,9 @@
+use anyhow::Context;
 use as_result::{IntoResult, MapResult};
 use async_process::{Child, ChildStdout, Command};
 use futures::io::BufReader;
 use futures::prelude::*;
 use futures::stream::{Stream, StreamExt};
-use futures_util::pin_mut;
 use std::io;
 use std::pin::Pin;
 
@@ -15,19 +15,19 @@ pub struct AptCache(Command);
 
 impl AptCache {
     pub fn new() -> Self {
-        let mut cmd = Command::new("apt-mark");
+        let mut cmd = Command::new("apt-cache");
         cmd.env("LANG", "C");
         Self(cmd)
     }
 
-    pub async fn depends<I, S>(mut self, packages: I) -> io::Result<(Child, PackageStream)>
+    pub async fn depends<I, S>(mut self, packages: I) -> io::Result<(Child, ChildStdout)>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<std::ffi::OsStr>,
     {
         self.arg("depends");
         self.args(packages);
-        self.stream_packages().await
+        self.spawn_with_stdout().await
     }
 
     pub async fn rdepends<I, S>(mut self, packages: I) -> io::Result<(Child, PackageStream)>
@@ -40,30 +40,39 @@ impl AptCache {
         self.stream_packages().await
     }
 
-    pub async fn predepends_of(package: String) -> io::Result<Vec<String>> {
-        let (mut child, mut packages) = AptCache::new().rdepends(&[&package]).await?;
+    pub async fn predepends_of<'a>(
+        out: &'a mut String,
+        package: &'a str,
+    ) -> anyhow::Result<Vec<&'a str>> {
+        let (mut child, mut packages) = AptCache::new()
+            .rdepends(&[&package])
+            .await
+            .with_context(|| format!("failed to launch `apt-cache rdepends {}`", package))?;
 
         let mut depends = Vec::new();
         while let Some(package) = packages.next().await {
             depends.push(package);
         }
 
+        child
+            .status()
+            .await
+            .map_result()
+            .with_context(|| format!("bad status from `apt-cache rdepends {}`", package))?;
+
+        let (mut child, mut stdout) = AptCache::new()
+            .depends(&depends)
+            .await
+            .with_context(|| format!("failed to launch `apt-cache depends {}`", package))?;
+
+        stdout
+            .read_to_string(out)
+            .await
+            .with_context(|| format!("failed to get output of `apt-cache depends {}`", package))?;
+
         child.status().await.map_result()?;
 
-        let (mut child, packages) = AptCache::new().depends(&depends).await?;
-
-        let packages = predepends(packages, package);
-        let mut predepends = Vec::new();
-
-        pin_mut!(packages);
-
-        while let Some(package) = packages.next().await {
-            predepends.push(package);
-        }
-
-        child.status().await.map_result()?;
-
-        Ok(predepends)
+        Ok(PreDependsIter::new(out.as_str(), package)?.collect::<Vec<_>>())
     }
 
     async fn stream_packages(self) -> io::Result<(Child, PackageStream)> {
@@ -88,31 +97,49 @@ impl AptCache {
         crate::utils::spawn_with_stdout(self.0).await
     }
 }
+pub struct PreDependsIter<'a> {
+    lines: std::str::Lines<'a>,
+    predepend: &'a str,
+    active: &'a str,
+}
 
-pub fn predepends(
-    mut lines: impl Stream<Item = String> + Unpin,
-    predepend: String,
-) -> impl Stream<Item = String> {
-    async_stream::stream! {
-        let mut active = match lines.next().await {
-            Some(line) => line,
-            None => return,
-        };
+impl<'a> PreDependsIter<'a> {
+    pub fn new(output: &'a str, predepend: &'a str) -> io::Result<Self> {
+        let mut lines = output.lines();
 
+        let active = lines.next().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "expected the first line of the output of apt-cache depends to be a package name",
+            )
+        })?;
+
+        Ok(Self {
+            lines,
+            predepend,
+            active: active.trim(),
+        })
+    }
+}
+
+impl<'a> Iterator for PreDependsIter<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
         let mut found = false;
-
-        while let Some(line) = lines.next().await {
+        while let Some(line) = self.lines.next() {
             if !line.starts_with(' ') {
-                let prev = active;
-                active = line.trim().to_owned();
+                let prev = self.active;
+                self.active = line.trim();
                 if found {
-                    yield prev;
-                    found = false
+                    return Some(prev);
                 }
-            } else if !found && line.starts_with("  PreDepends: ") && &line[14..] == predepend
+            } else if !found && line.starts_with("  PreDepends: ") && &line[14..] == self.predepend
             {
                 found = true;
             }
         }
+
+        None
     }
 }
