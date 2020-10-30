@@ -8,6 +8,7 @@ mod dpkg;
 mod upgrade;
 mod utils;
 
+pub mod apt;
 pub mod fetch;
 pub mod hash;
 pub mod lock;
