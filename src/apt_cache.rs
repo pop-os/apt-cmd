@@ -9,6 +9,52 @@ use std::pin::Pin;
 
 pub type PackageStream = Pin<Box<dyn Stream<Item = String>>>;
 
+#[derive(Debug, Clone)]
+pub struct Policy {
+    pub package: String,
+    pub installed: String,
+    pub candidate: String,
+}
+
+pub type Policies = Pin<Box<dyn Stream<Item = Policy>>>;
+
+fn policies(lines: impl Stream<Item = io::Result<String>>) -> impl Stream<Item = Policy> {
+    async_stream::stream! {
+        futures_util::pin_mut!(lines);
+
+        let mut policy = Policy {
+            package: String::new(),
+            installed: String::new(),
+            candidate: String::new()
+        };
+
+        while let Some(Ok(line)) = lines.next().await {
+            if line.is_empty() {
+                continue
+            }
+
+            if !line.starts_with(' ') {
+                policy.package = line;
+                continue
+            }
+
+            let line = line.trim();
+
+            if line.starts_with("I") {
+                if let Some(v) = line.split_ascii_whitespace().nth(1) {
+                    policy.installed = v.to_owned();
+                }
+            } else if line.starts_with("C") {
+                if let Some(v) = line.split_ascii_whitespace().nth(1) {
+                    policy.candidate = v.to_owned();
+                }
+
+                yield policy.clone();
+            }
+        }
+    }
+}
+
 #[derive(AsMut, Deref, DerefMut)]
 #[as_mut(forward)]
 pub struct AptCache(Command);
@@ -38,6 +84,21 @@ impl AptCache {
         self.arg("rdepends");
         self.args(packages);
         self.stream_packages().await
+    }
+
+    pub async fn policy<'a>(
+        mut self,
+        packages: &'a [&'a str],
+    ) -> anyhow::Result<(Child, Policies)> {
+        self.arg("policy");
+        self.args(packages);
+        self.env("LANG", "C");
+
+        let (child, stdout) = self.spawn_with_stdout().await?;
+
+        let stream = Box::pin(policies(BufReader::new(stdout).lines()));
+
+        Ok((child, stream))
     }
 
     pub async fn predepends_of<'a>(

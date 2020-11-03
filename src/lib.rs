@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 #[macro_use]
 extern crate derive_more;
 
@@ -14,7 +16,7 @@ pub mod hash;
 pub mod lock;
 pub mod request;
 
-pub use self::apt_cache::AptCache;
+pub use self::apt_cache::{AptCache, Policies, Policy};
 pub use self::apt_get::AptGet;
 pub use self::apt_mark::AptMark;
 pub use self::dpkg::{Dpkg, DpkgQuery};
