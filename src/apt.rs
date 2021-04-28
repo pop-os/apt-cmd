@@ -18,7 +18,7 @@ pub async fn upgradable_packages() -> anyhow::Result<(Child, Packages)> {
     let stdout = child.stdout.take().unwrap();
 
     let stream = Box::pin(async_stream::stream! {
-        let mut lines = BufReader::new(stdout).lines().skip(1);
+        let lines = BufReader::new(stdout).lines().skip(1);
 
         futures_util::pin_mut!(lines);
 
