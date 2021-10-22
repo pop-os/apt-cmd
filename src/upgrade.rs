@@ -145,30 +145,26 @@ impl FromStr for AptUpgradeEvent {
     type Err = ();
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        if input.starts_with("Progress: [") {
-            let (_, progress) = input.split_at(11);
-            let progress = progress.trim_end();
-            if progress.len() == 5 {
-                if let Ok(percent) = progress[..progress.len() - 2].trim_end().parse::<u8>() {
+        if let Some(mut progress) = input.strip_prefix("Progress: [") {
+            progress = progress.trim();
+            if let Some(pos) = progress.find('%') {
+                if let Ok(percent) = progress[..pos].parse::<u8>() {
                     return Ok(AptUpgradeEvent::Progress { percent });
                 }
             }
-        } else if input.starts_with("Processing triggers for ") {
-            let (_, input) = input.split_at(24);
+        } else if let Some(input) = input.strip_prefix("Processing triggers for ") {
             if let Some(package) = input.split_whitespace().next() {
                 return Ok(AptUpgradeEvent::Processing {
                     package: package.into(),
                 });
             }
-        } else if input.starts_with("Setting up ") {
-            let (_, input) = input.split_at(11);
+        } else if let Some(input) = input.strip_prefix("Setting up ") {
             if let Some(package) = input.split_whitespace().next() {
                 return Ok(AptUpgradeEvent::SettingUp {
                     package: package.into(),
                 });
             }
-        } else if input.starts_with("Unpacking ") {
-            let (_, input) = input.split_at(10);
+        } else if let Some(input) = input.strip_prefix("Unpacking ") {
             let mut fields = input.split_whitespace();
             if let (Some(package), Some(version), Some(over)) =
                 (fields.next(), fields.next(), fields.nth(1))
