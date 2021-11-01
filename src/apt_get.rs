@@ -36,7 +36,7 @@ impl AptGet {
 
     pub fn allow_downgrades(mut self) -> Self {
         self.arg("--allow-downgrades");
-        return self;
+        self
     }
 
     pub fn autoremove(mut self) -> Self {
@@ -51,7 +51,7 @@ impl AptGet {
 
     pub fn force(mut self) -> Self {
         self.arg("-y");
-        return self;
+        self
     }
 
     pub async fn install<I, S>(mut self, packages: I) -> io::Result<()>
@@ -65,9 +65,14 @@ impl AptGet {
         self.status().await
     }
 
+    pub fn mark_auto(mut self) -> Self {
+        self.arg("--mark-auto");
+        self
+    }
+
     pub fn noninteractive(mut self) -> Self {
         self.env("DEBIAN_FRONTEND", "noninteractive");
-        return self;
+        self
     }
 
     pub async fn update(mut self) -> io::Result<()> {
