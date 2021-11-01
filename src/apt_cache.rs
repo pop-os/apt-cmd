@@ -60,6 +60,7 @@ fn policies(lines: impl Stream<Item = io::Result<String>>) -> impl Stream<Item =
 pub struct AptCache(Command);
 
 impl AptCache {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let mut cmd = Command::new("apt-cache");
         cmd.env("LANG", "C");
@@ -188,7 +189,7 @@ impl<'a> Iterator for PreDependsIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut found = false;
-        while let Some(line) = self.lines.next() {
+        for line in &mut self.lines {
             if !line.starts_with(' ') {
                 let prev = self.active;
                 self.active = line.trim();

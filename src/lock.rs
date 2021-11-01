@@ -49,7 +49,7 @@ pub fn apt_lock_found(paths: &[&Path]) -> bool {
         if let Ok(fdinfos) = proc.fd() {
             for fdinfo in fdinfos {
                 if let FDTarget::Path(path) = fdinfo.target {
-                    if paths.into_iter().any(|&p| &*path == p) {
+                    if paths.iter().any(|&p| &*path == p) {
                         return true;
                     }
                 }

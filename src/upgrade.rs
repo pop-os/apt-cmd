@@ -52,6 +52,7 @@ impl AptUpgradeEvent {
         map
     }
 
+    #[allow(clippy::result_unit_err)]
     pub fn from_dbus_map<K: AsRef<str>, V: AsRef<str> + Into<Box<str>>>(
         mut map: impl Iterator<Item = (K, V)>,
     ) -> Result<Self, ()> {

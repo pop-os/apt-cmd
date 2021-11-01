@@ -12,6 +12,7 @@ use std::{io, pin::Pin};
 pub struct Dpkg(Command);
 
 impl Dpkg {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let mut cmd = Command::new("dpkg");
         cmd.env("LANG", "C");
@@ -35,6 +36,7 @@ pub type InstalledEvent = Pin<Box<dyn Stream<Item = String>>>;
 pub struct DpkgQuery(Command);
 
 impl DpkgQuery {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let mut cmd = Command::new("dpkg-query");
         cmd.env("LANG", "C");

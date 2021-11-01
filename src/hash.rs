@@ -52,7 +52,7 @@ pub async fn compare_hash(
 
     let hash = &*hasher.finalize();
 
-    if &*expected == &*hash {
+    if &*expected == hash {
         Ok(())
     } else {
         Err(ChecksumError::Mismatch)

@@ -28,6 +28,7 @@ pub type UpgradeEvents = Pin<Box<dyn Stream<Item = AptUpgradeEvent>>>;
 pub struct AptGet(Command);
 
 impl AptGet {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let mut cmd = Command::new("apt-get");
         cmd.env("LANG", "C");

@@ -7,6 +7,7 @@ use std::io;
 pub struct AptMark(Command);
 
 impl AptMark {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let mut cmd = Command::new("apt-mark");
         cmd.env("LANG", "C");
