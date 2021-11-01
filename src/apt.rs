@@ -33,7 +33,6 @@ pub async fn upgradable_packages() -> anyhow::Result<(Child, Packages)> {
     Ok((child, stream))
 }
 
-
 /// Fetch debian packages which are necessary security updates, only.
 pub async fn security_updates() -> anyhow::Result<(Child, Packages)> {
     let mut child = Command::new("apt")

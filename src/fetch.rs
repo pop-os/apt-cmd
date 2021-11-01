@@ -3,13 +3,7 @@ use crate::request::Request as AptRequest;
 use async_io::Timer;
 use futures::stream::{Stream, StreamExt};
 use isahc::http::Request;
-use std::{
-    io,
-    path::{Path, PathBuf},
-    pin::Pin,
-    sync::Arc,
-    time::Duration,
-};
+use std::{io, path::Path, pin::Pin, sync::Arc, time::Duration};
 use thiserror::Error;
 
 pub type FetchEvents = Pin<Box<dyn Stream<Item = FetchEvent>>>;
@@ -32,13 +26,13 @@ pub enum EventKind {
     Fetching,
 
     /// Package was downloaded successfully
-    Fetched(PathBuf),
+    Fetched,
 
     /// An error occurred fetching or validating package
     Error(FetchError),
 
     /// The package has been validated
-    Validated(PathBuf),
+    Validated,
 }
 
 #[derive(Debug, Error)]
@@ -51,6 +45,9 @@ pub enum FetchError {
 
     #[error("computed md5sum is invalid")]
     InvalidHash(#[source] crate::hash::ChecksumError),
+
+    #[error("failed to rename fetched file")]
+    Rename(#[source] io::Error),
 
     #[error("failed to request package")]
     Request(#[from] Box<dyn std::error::Error + 'static + Sync + Send>),
@@ -83,7 +80,7 @@ impl PackageFetcher {
 
     pub fn concurrent(mut self, concurrent: usize) -> Self {
         self.concurrent = concurrent;
-        return self;
+        self
     }
 
     pub fn delay_between(mut self, delay: u64) -> Self {
@@ -99,7 +96,8 @@ impl PackageFetcher {
     pub fn fetch(
         self,
         packages: impl Stream<Item = Arc<AptRequest>> + Send + 'static,
-        path: Arc<Path>,
+        partial: Arc<Path>,
+        destination: Arc<Path>,
     ) -> FetchEvents {
         let (tx, rx) = flume::bounded(0);
 
@@ -117,7 +115,8 @@ impl PackageFetcher {
         let fetcher =
             packages.for_each_concurrent(Some(concurrent), move |uri: Arc<AptRequest>| {
                 let client = client.clone();
-                let path = path.clone();
+                let partial = partial.clone();
+                let destination = destination.clone();
                 let tx = tx.clone();
                 let barrier = barrier.clone();
 
@@ -125,7 +124,7 @@ impl PackageFetcher {
                     let event_process = || async {
                         let _ = tx.send(FetchEvent::new(uri.clone(), EventKind::Fetching));
 
-                        // If defined, ensures that one one thread may initiate a connection at a time.
+                        // If defined, ensures that only one thread may initiate a connection at a time.
                         // Prevents us from hammering the servers on release day.
                         if let Some(delay) = delay {
                             let guard = barrier.wait().await;
@@ -148,31 +147,27 @@ impl PackageFetcher {
                             return Err(EventKind::Error(FetchError::Response(status)));
                         }
 
-                        let dest = path.join(&uri.name);
+                        let partial_file = partial.join(&uri.name);
 
-                        let mut file = match async_fs::File::create(&dest).await {
-                            Ok(f) => f,
-                            Err(why) => {
-                                return Err(EventKind::Error(FetchError::Create(why)));
-                            }
-                        };
+                        let mut file = async_fs::File::create(&partial_file)
+                            .await
+                            .map_err(|why| EventKind::Error(FetchError::Create(why)))?;
 
-                        if let Err(why) = futures::io::copy(resp.body_mut(), &mut file).await {
-                            return Err(EventKind::Error(FetchError::Copy(why)));
-                        }
+                        futures::io::copy(resp.body_mut(), &mut file)
+                            .await
+                            .map_err(|why| EventKind::Error(FetchError::Copy(why)))?;
 
-                        let _ = tx.send(FetchEvent::new(
-                            uri.clone(),
-                            EventKind::Fetched(dest.clone()),
-                        ));
+                        let _ = tx.send(FetchEvent::new(uri.clone(), EventKind::Fetched));
 
-                        if let Err(why) =
-                            crate::hash::compare_hash(&dest, uri.size, &uri.md5sum).await
-                        {
-                            return Err(EventKind::Error(FetchError::InvalidHash(why)));
-                        }
+                        crate::hash::compare_hash(&partial_file, uri.size, &uri.md5sum)
+                            .await
+                            .map_err(|why| EventKind::Error(FetchError::InvalidHash(why)))?;
 
-                        let _ = tx.send(FetchEvent::new(uri.clone(), EventKind::Validated(dest)));
+                        let _ = tx.send(FetchEvent::new(uri.clone(), EventKind::Validated));
+
+                        async_fs::rename(&partial_file, &destination.join(&uri.name))
+                            .await
+                            .map_err(|why| EventKind::Error(FetchError::Rename(why)))?;
 
                         Ok(())
                     };
