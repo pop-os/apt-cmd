@@ -2,7 +2,7 @@
 name = "apt-cmd"
 description = "Async library for interacting with apt commands"
 version = "0.2.0"
-license = "LGPL-3.0"
+license = "MPL-2.0"
 authors = ["Michael Aaron Murphy <mmstick@pm.me>"]
 edition = "2018"
 
