@@ -7,7 +7,7 @@ authors = ["Michael Aaron Murphy <mmstick@pm.me>"]
 edition = "2018"
 
 [dependencies]
-anyhow = "1.0.51"
+anyhow = "1.0.52"
 as-result = "0.2.1"
 async-barrier = "1.1.0"
 async-fs = "1.5.0"
@@ -17,8 +17,8 @@ async-stream = "0.3.2"
 async-task = "4.0.3"
 derive_more = "0.99.17"
 flume = "0.10.9"
-futures = "0.3.18"
-futures-util = "0.3.18"
+futures = "0.3.19"
+futures-util = "0.3.19"
 hex = "0.4.3"
 isahc = "1.6.0"
 md-5 = "0.10.0"
@@ -28,4 +28,4 @@ smolscale = "0.3.16"
 thiserror = "1.0.30"
 
 [dev-dependencies]
-anyhow = "1.0.51"
+anyhow = "1.0.52"
