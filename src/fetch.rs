@@ -46,7 +46,7 @@ pub enum FetchError {
     #[error("failed to create file for package")]
     Create(#[source] io::Error),
 
-    #[error("computed md5sum is invalid")]
+    #[error("computed checksum is invalid")]
     InvalidHash(#[source] crate::hash::ChecksumError),
 
     #[error("failed to rename fetched file")]
@@ -55,7 +55,7 @@ pub enum FetchError {
     #[error("failed to request package")]
     Request(#[from] Box<dyn std::error::Error + 'static + Sync + Send>),
 
-    #[error("server responded with error: {}", _0)]
+    #[error("server responded with error: {0}")]
     Response(isahc::http::StatusCode),
 }
 
@@ -162,7 +162,7 @@ impl PackageFetcher {
 
                         let _ = tx.send(FetchEvent::new(uri.clone(), EventKind::Fetched));
 
-                        crate::hash::compare_hash(&partial_file, uri.size, &uri.md5sum)
+                        crate::hash::compare_hash(&partial_file, uri.size, &uri.checksum)
                             .await
                             .map_err(|why| EventKind::Error(FetchError::InvalidHash(why)))?;
 

@@ -10,22 +10,28 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum RequestError {
-    #[error("apt command failed: {}", _0)]
-    Command(io::Error),
-    #[error("uri not found in output: {}", _0)]
+    #[error("apt command failed")]
+    Command(#[from] io::Error),
+    #[error("uri not found in output: {0}")]
     UriNotFound(String),
-    #[error("invalid URI value: {}", _0)]
+    #[error("invalid URI value: {0}")]
     UriInvalid(String),
-    #[error("name not found in output: {}", _0)]
+    #[error("name not found in output: {0}")]
     NameNotFound(String),
-    #[error("size not found in output: {}", _0)]
+    #[error("size not found in output: {0}")]
     SizeNotFound(String),
-    #[error("size in output could not be parsed as an integer: {}", _0)]
+    #[error("size in output could not be parsed as an integer: {0}")]
     SizeParse(String),
-    #[error("md5sum not found in output: {}", _0)]
-    Md5NotFound(String),
-    #[error("md5 prefix (MD5Sum:) not found in md5sum: {}", _0)]
-    Md5Prefix(String),
+    #[error("checksum not found in output: {0}")]
+    ChecksumNotFound(String),
+    #[error("unknown checksum for print-uri output: {0}")]
+    UnknownChecksum(String),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum RequestChecksum {
+    Md5(String),
+    Sha1(String)
 }
 
 #[derive(Debug, Clone, Eq)]
@@ -33,7 +39,7 @@ pub struct Request {
     pub uri: String,
     pub name: String,
     pub size: u64,
-    pub md5sum: String,
+    pub checksum: RequestChecksum,
 }
 
 impl PartialEq for Request {
@@ -74,21 +80,24 @@ impl FromStr for Request {
         let size = size
             .parse::<u64>()
             .map_err(|_| RequestError::SizeParse(size.into()))?;
-        let mut md5sum = words
-            .next()
-            .ok_or_else(|| RequestError::Md5NotFound(line.into()))?;
 
-        if md5sum.starts_with("MD5Sum:") {
-            md5sum = &md5sum[7..];
+        let checksum_string = words
+            .next()
+            .ok_or_else(|| RequestError::ChecksumNotFound(line.into()))?;
+
+        let checksum = if let Some(value) = checksum_string.strip_prefix("MD5Sum:") {
+            RequestChecksum::Md5(value.to_owned())
+        } else if let Some(value) = checksum_string.strip_prefix("SHA1:") {
+            RequestChecksum::Sha1(value.to_owned())
         } else {
-            return Err(RequestError::Md5Prefix(md5sum.into()));
-        }
+            return Err(RequestError::UnknownChecksum(checksum_string.into()));
+        };
 
         Ok(Request {
             uri: uri.into(),
             name: name.into(),
             size,
-            md5sum: md5sum.into(),
+            checksum,
         })
     }
 }

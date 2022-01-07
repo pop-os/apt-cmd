@@ -1,7 +1,7 @@
 [package]
 name = "apt-cmd"
 description = "Async library for interacting with apt commands"
-version = "0.2.1"
+version = "0.3.0"
 license = "MPL-2.0"
 authors = ["Michael Aaron Murphy <mmstick@pm.me>"]
 edition = "2018"
@@ -23,6 +23,7 @@ hex = "0.4.3"
 isahc = "1.6.0"
 md-5 = "0.10.0"
 procfs = "0.12.0"
+sha-1 = "0.10.0"
 smolscale = "0.3.16"
 thiserror = "1.0.30"
 

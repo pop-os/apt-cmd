@@ -15,6 +15,7 @@ fn main() -> anyhow::Result<()> {
     let future = async move {
         let client = isahc::HttpClient::new().unwrap();
         let path = Path::new("./packages/");
+        let partial = path.join("partial");
         let (fetch_tx, fetch_rx) = flume::bounded(CONCURRENT_FETCHES);
 
         if !path.exists() {
@@ -25,7 +26,7 @@ fn main() -> anyhow::Result<()> {
             .concurrent(CONCURRENT_FETCHES)
             .delay_between(DELAY_BETWEEN)
             .retries(RETRIES)
-            .fetch(fetch_rx.into_stream(), Arc::from(path));
+            .fetch(fetch_rx.into_stream(), Arc::from(path), Arc::from(partial));
 
         // Fetch a list of packages that need to be fetched, and send them on their way
         let sender = async move {
