@@ -22,6 +22,16 @@ impl Dpkg {
         Self(cmd)
     }
 
+    pub fn force_confdef(mut self) -> Self {
+        self.arg("--force-confdef");
+        self
+    }
+
+    pub fn force_confold(mut self) -> Self {
+        self.arg("--force-confold");
+        self
+    }
+
     pub fn configure_all(mut self) -> Self {
         self.args(&["--configure", "-a"]);
         self

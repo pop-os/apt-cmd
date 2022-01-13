@@ -48,6 +48,11 @@ impl AptGet {
         self
     }
 
+    pub fn dpkg_option(mut self, option: &str) -> Self {
+        self.args(&["-o", &["Dpkg::Options::=", option].concat()]);
+        self
+    }
+
     pub fn fix_broken(mut self) -> Self {
         self.args(&["install", "-f"]);
         self
@@ -56,6 +61,34 @@ impl AptGet {
     pub fn force(mut self) -> Self {
         self.arg("-y");
         self
+    }
+
+    pub fn force_breaks(self) -> Self {
+        self.dpkg_option("--force-breaks")
+    }
+
+    pub fn force_confdef(self) -> Self {
+        self.dpkg_option("--force-confdef")
+    }
+
+    pub fn force_conflicts(self) -> Self {
+        self.dpkg_option("--force-conflicts")
+    }
+
+    pub fn force_confold(self) -> Self {
+        self.dpkg_option("--force-confold")
+    }
+
+    pub fn force_depends(self) -> Self {
+        self.dpkg_option("--force-depends")
+    }
+
+    pub fn force_depends_version(self) -> Self {
+        self.dpkg_option("--force-depends-version")
+    }
+
+    pub fn force_overwrite(self) -> Self {
+        self.dpkg_option("--force-overwrite")
     }
 
     pub async fn install<I, S>(mut self, packages: I) -> io::Result<()>
