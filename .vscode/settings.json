@@ -1,0 +1,4 @@
+{
+    "remote.containers.dockerPath": "podman",
+    "rust-analyzer.checkOnSave.command": "clippy"
+}
