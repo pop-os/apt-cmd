@@ -17,8 +17,12 @@ pub enum ChecksumError {
     #[error("unable to open the file to validate")]
     FileOpen(#[source] io::Error),
 
-    #[error("file does not match expected size")]
-    InvalidSize,
+    #[error(
+        "file does not match expected size: found {} KiB but expected {} KiB",
+        found,
+        expected
+    )]
+    InvalidSize { found: u64, expected: u64 },
 
     #[error("error during read of file")]
     FileRead(#[source] io::Error),
@@ -38,7 +42,10 @@ pub fn compare_hash(
 
     let file_size = file.metadata().unwrap().len();
     if file_size != expected_size {
-        return Err(ChecksumError::InvalidSize);
+        return Err(ChecksumError::InvalidSize {
+            found: file_size / 1024,
+            expected: expected_size / 1024,
+        });
     }
 
     match expected_hash {

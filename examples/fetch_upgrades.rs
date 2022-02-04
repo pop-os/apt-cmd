@@ -9,13 +9,9 @@ use tokio_stream::wrappers::ReceiverStream;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    const CONCURRENT_FETCHES: usize = 4;
-    const DELAY_BETWEEN: u64 = 100;
-    const RETRIES: u32 = 3;
+    const CONCURRENT_FETCHES: usize = 8;
 
-    let client = isahc::HttpClient::new().unwrap();
     let path = Path::new("./packages/");
-    let partial = path.join("partial");
     let (fetch_tx, fetch_rx) = tokio::sync::mpsc::channel(CONCURRENT_FETCHES);
     let packages = ReceiverStream::new(fetch_rx);
 
@@ -23,11 +19,10 @@ async fn main() -> anyhow::Result<()> {
         tokio::fs::create_dir_all(path).await.unwrap();
     }
 
-    let (fetcher, mut events) = PackageFetcher::new(client)
+    let (fetcher, mut events) = PackageFetcher::default()
         .concurrent(CONCURRENT_FETCHES)
-        .delay_between(DELAY_BETWEEN)
-        .retries(RETRIES)
-        .fetch(packages, Arc::from(path), Arc::from(partial));
+        .connections_per_file(4)
+        .fetch(packages, Arc::from(path));
 
     // Fetch a list of packages that need to be fetched, and send them on their way
     let sender = async move {
@@ -48,12 +43,13 @@ async fn main() -> anyhow::Result<()> {
     // Begin listening for packages to fetch
     let receiver = async move {
         while let Some(event) = events.recv().await {
-            println!("Event: {:#?}", event);
-
+            eprintln!("{:#?}\n", event);
             if let EventKind::Error(why) = event.kind {
                 return Err(why).context("package fetching failed");
             }
         }
+
+        eprintln!("finished");
 
         Ok::<(), anyhow::Error>(())
     };

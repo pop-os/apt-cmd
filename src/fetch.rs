@@ -1,15 +1,14 @@
 // Copyright 2021-2022 System76 <info@system76.com>
 // SPDX-License-Identifier: MPL-2.0
 
+pub use async_fetcher::Fetcher;
+
 use crate::request::Request as AptRequest;
 
 use futures::stream::{Stream, StreamExt};
-use isahc::http::Request;
-use std::{io, path::Path, pin::Pin, sync::Arc, time::Duration};
+use std::{path::Path, pin::Pin, sync::Arc};
 use thiserror::Error;
-use tokio::fs::File;
-use tokio::sync::{mpsc, Barrier};
-use tokio::time::sleep;
+use tokio::sync::mpsc;
 
 pub type FetchEvents = Pin<Box<dyn Stream<Item = FetchEvent>>>;
 
@@ -33,7 +32,7 @@ pub enum EventKind {
     /// Package was downloaded successfully
     Fetched,
 
-    /// An error occurred fetching or validating package
+    /// An error occurred fetching package
     Error(FetchError),
 
     /// The package has been validated
@@ -42,23 +41,17 @@ pub enum EventKind {
 
 #[derive(Debug, Error)]
 pub enum FetchError {
-    #[error("failure when writing package to disk")]
-    Copy(#[source] io::Error),
+    #[error("{}: fetched package had checksum error", package)]
+    Checksum {
+        package: String,
+        source: crate::hash::ChecksumError,
+    },
 
-    #[error("failed to create file for package")]
-    Create(#[source] io::Error),
-
-    #[error("computed checksum is invalid")]
-    InvalidHash(#[source] crate::hash::ChecksumError),
-
-    #[error("failed to rename fetched file")]
-    Rename(#[source] io::Error),
-
-    #[error("failed to request package")]
-    Request(#[from] Box<dyn std::error::Error + 'static + Sync + Send>),
-
-    #[error("server responded with error: {0}")]
-    Response(isahc::http::StatusCode),
+    #[error("{}: download failed", package)]
+    Fetch {
+        package: String,
+        source: async_fetcher::Error,
+    },
 }
 
 pub struct FetchRequest {
@@ -66,21 +59,25 @@ pub struct FetchRequest {
     pub attempt: usize,
 }
 
+#[derive(Default)]
 pub struct PackageFetcher {
-    client: isahc::HttpClient,
+    fetcher: Fetcher<AptRequest>,
     concurrent: usize,
-    delay: Option<u64>,
-    retries: u32,
 }
 
 impl PackageFetcher {
-    pub fn new(client: isahc::HttpClient) -> Self {
+    pub fn new(fetcher: Fetcher<AptRequest>) -> Self {
         Self {
-            client,
+            fetcher,
             concurrent: 1,
-            delay: None,
-            retries: 3,
         }
+    }
+
+    pub fn connections_per_file(mut self, connections: u16) -> Self {
+        self.fetcher = self
+            .fetcher
+            .connections_per_file(connections);
+        self
     }
 
     pub fn concurrent(mut self, concurrent: usize) -> Self {
@@ -88,132 +85,107 @@ impl PackageFetcher {
         self
     }
 
-    pub fn delay_between(mut self, delay: u64) -> Self {
-        self.delay = Some(delay);
-        self
-    }
-
-    pub fn retries(mut self, retries: u32) -> Self {
-        self.retries = retries;
+    pub fn retries(mut self, retries: u16) -> Self {
+        self.fetcher = self.fetcher.retries(retries);
         self
     }
 
     pub fn fetch(
         self,
-        packages: impl Stream<Item = Arc<AptRequest>> + Send + 'static,
-        partial: Arc<Path>,
+        packages: impl Stream<Item = Arc<AptRequest>> + Send + Unpin + 'static,
         destination: Arc<Path>,
     ) -> (
         impl std::future::Future<Output = ()> + Send + 'static,
-        mpsc::Receiver<FetchEvent>,
+        mpsc::UnboundedReceiver<FetchEvent>,
     ) {
-        let (tx, rx) = mpsc::channel(1);
+        let (tx, rx) = mpsc::unbounded_channel::<FetchEvent>();
+        let (events_tx, mut events_rx) = mpsc::unbounded_channel();
 
-        let Self {
-            client,
-            concurrent,
-            delay,
-            retries,
-        } = self;
+        let input_stream = packages.map(move |package| {
+            (
+                async_fetcher::Source::new(
+                    Arc::from(vec![Box::from(&*package.uri)].into_boxed_slice()),
+                    Arc::from(destination.join(&package.name)),
+                ),
+                package,
+            )
+        });
 
-        let client = Arc::new(client);
-
-        let barrier = Arc::new(Barrier::new(1));
-
-        let fetcher =
-            packages.for_each_concurrent(Some(concurrent), move |uri: Arc<AptRequest>| {
-                let client = client.clone();
-                let partial = partial.clone();
-                let destination = destination.clone();
-                let tx = tx.clone();
-                let barrier = barrier.clone();
-
-                async move {
-                    let event_process = || async {
-                        let _ = tx.send(FetchEvent::new(uri.clone(), EventKind::Fetching));
-
-                        // If defined, ensures that only one thread may initiate a connection at a time.
-                        // Prevents us from hammering the servers on release day.
-                        if let Some(delay) = delay {
-                            let guard = barrier.wait().await;
-                            sleep(Duration::from_millis(delay)).await;
-                            drop(guard);
-                        }
-
-                        let mut resp = match client
-                            .send_async(Request::get(&uri.uri).body(()).unwrap())
-                            .await
-                        {
-                            Ok(resp) => resp,
-                            Err(why) => {
-                                return Err(EventKind::Error(FetchError::Request(Box::from(why))));
-                            }
-                        };
-
-                        let status = resp.status();
-                        if !status.is_success() {
-                            return Err(EventKind::Error(FetchError::Response(status)));
-                        }
-
-                        let partial_file = partial.join(&uri.name);
-
-                        let mut file = File::create(&partial_file)
-                            .await
-                            .map_err(|why| EventKind::Error(FetchError::Create(why)))?;
-
-                        use tokio_util::compat::FuturesAsyncReadCompatExt;
-
-                        tokio::io::copy(&mut resp.body_mut().compat(), &mut file)
-                            .await
-                            .map_err(|why| EventKind::Error(FetchError::Copy(why)))?;
-
-                        let _ = tx
-                            .send(FetchEvent::new(uri.clone(), EventKind::Fetched))
-                            .await;
-
-                        // Perform checksum validation from a background thread.
-                        let tx = tx.clone();
-                        let uri = uri.clone();
-                        let destination = destination.clone();
-                        let validation_future = tokio::task::spawn_blocking(|| {
-                            futures::executor::block_on(async move {
-                                crate::hash::compare_hash(&partial_file, uri.size, &uri.checksum)
-                                    .map_err(|why| EventKind::Error(FetchError::InvalidHash(why)))?;
-
-                                let _ = tx
-                                    .send(FetchEvent::new(uri.clone(), EventKind::Validated))
-                                    .await;
-
-                                std::fs::rename(&partial_file, &destination.join(&uri.name))
-                                    .map_err(|why| EventKind::Error(FetchError::Rename(why)))?;
-
-                                Ok(())
-                            })
-                        });
-
-                        validation_future
-                            .await
-                            .expect("failed to join tokio spawn_blocking of compare_hash")
-                    };
-
-                    let mut attempts = 0;
-
-                    loop {
-                        if let Err(why) = event_process().await {
-                            if attempts == retries {
-                                let _ = tx.send(FetchEvent::new(uri.clone(), why)).await;
-                                break;
-                            }
-
-                            attempts += 1;
-                            continue;
-                        }
-
-                        break;
-                    }
-                }
+        let mut fetch_results = self
+            .fetcher
+            .events(events_tx)
+            .build()
+            .requests_stream(input_stream)
+            .buffer_unordered(if self.concurrent > 0 {
+                self.concurrent
+            } else {
+                1
             });
 
-        (fetcher, rx)
+        let event_handler = {
+            let tx = tx.clone();
+            async move {
+                while let Some((dest, package, event)) = events_rx.recv().await {
+                    match event {
+                        async_fetcher::FetchEvent::AlreadyFetched => {
+                            let _ = tx.send(FetchEvent::new(package.clone(), EventKind::Fetched));
+                            let _ = tx.send(FetchEvent::new(package, EventKind::Validated));
+                        }
+
+                        async_fetcher::FetchEvent::Fetching => {
+                            let _ = tx.send(FetchEvent::new(package, EventKind::Fetching));
+                        }
+
+                        async_fetcher::FetchEvent::Fetched => {
+                            let _ = tx.send(FetchEvent::new(package.clone(), EventKind::Fetched));
+                            let tx = tx.clone();
+
+                            tokio::task::spawn_blocking(move || {
+                                let event = match crate::hash::compare_hash(
+                                    &dest,
+                                    package.size,
+                                    &package.checksum,
+                                ) {
+                                    Ok(()) => EventKind::Validated,
+                                    Err(source) => {
+                                        let _ = std::fs::remove_file(&dest);
+                                        EventKind::Error(FetchError::Checksum {
+                                            package: package.uri.clone(),
+                                            source,
+                                        })
+                                    }
+                                };
+
+                                let _ = tx.send(FetchEvent::new(package, event));
+                            });
+                        }
+
+                        _ => (),
+                    }
+                }
+            }
+        };
+
+        let fetcher = async move {
+            while let Some((dest, package, result)) = fetch_results.next().await {
+                if let Err(source) = result {
+                    let _ = tx.send(FetchEvent::new(
+                        package.clone(),
+                        EventKind::Error(FetchError::Fetch {
+                            package: package.uri.clone(),
+                            source,
+                        }),
+                    ));
+
+                    let _ = tokio::fs::remove_file(&dest).await;
+                }
+            }
+        };
+
+        let future = async move {
+            let _ = futures::future::join(event_handler, fetcher).await;
+        };
+
+        (future, rx)
     }
 }

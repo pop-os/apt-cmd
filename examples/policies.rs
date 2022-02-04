@@ -6,7 +6,7 @@ async fn main() -> anyhow::Result<()> {
         .policy(&["firefox", "gnome-shell"])
         .await?;
 
-    futures_util::pin_mut!(policies);
+    futures::pin_mut!(policies);
 
     while let Some(policy) = policies.next().await {
         println!("policy: {:#?}", policy);

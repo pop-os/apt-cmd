@@ -3,7 +3,6 @@
 
 use async_stream::stream;
 use futures::stream::{Stream, StreamExt};
-use futures_util::pin_mut;
 use std::path::Path;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -17,7 +16,7 @@ pub enum AptLockEvent {
 
 pub async fn apt_lock_wait() {
     let stream = apt_lock_watch();
-    pin_mut!(stream);
+    futures::pin_mut!(stream);
 
     while stream.next().await.is_some() {}
 }

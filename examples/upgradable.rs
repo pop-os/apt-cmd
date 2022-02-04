@@ -4,7 +4,7 @@ use futures::stream::StreamExt;
 async fn main() -> anyhow::Result<()> {
     let (mut child, packages) = apt_cmd::apt::upgradable_packages().await?;
 
-    futures_util::pin_mut!(packages);
+    futures::pin_mut!(packages);
 
     while let Some(package) = packages.next().await {
         println!("package: {}", package);

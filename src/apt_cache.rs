@@ -23,7 +23,7 @@ pub type Policies = Pin<Box<dyn Stream<Item = Policy>>>;
 
 fn policies(lines: impl Stream<Item = io::Result<String>>) -> impl Stream<Item = Policy> {
     async_stream::stream! {
-        futures_util::pin_mut!(lines);
+        futures::pin_mut!(lines);
 
         let mut policy = Policy {
             package: String::new(),
