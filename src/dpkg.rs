@@ -1,14 +1,12 @@
-// Copyright 2021 System76 <info@system76.com>
+// Copyright 2021-2022 System76 <info@system76.com>
 // SPDX-License-Identifier: MPL-2.0
 
 use as_result::*;
-use async_process::{Child, ChildStdout, Command};
 use async_stream::stream;
-use futures::io::BufReader;
-use futures::prelude::*;
-use futures::stream::StreamExt;
-use futures_util::pin_mut;
+use futures::stream::Stream;
 use std::{io, pin::Pin};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::{Child, ChildStdout, Command};
 
 #[derive(AsMut, Deref, DerefMut)]
 #[as_mut(forward)]
@@ -66,11 +64,10 @@ impl DpkgQuery {
 
         let (child, stdout) = self.spawn_with_stdout().await?;
 
-        let stdout = BufReader::new(stdout).lines();
+        let mut stdout = BufReader::new(stdout).lines();
 
         let stream = stream! {
-            pin_mut!(stdout);
-            while let Some(Ok(line)) = stdout.next().await {
+            while let Ok(Some(line)) = stdout.next_line().await {
                 let mut fields = line.split(' ');
                 let package = fields.next().unwrap();
                 if fields.next().unwrap() == "installed" {

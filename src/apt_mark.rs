@@ -1,9 +1,9 @@
-// Copyright 2021 System76 <info@system76.com>
+// Copyright 2021-2022 System76 <info@system76.com>
 // SPDX-License-Identifier: MPL-2.0
 
 use as_result::IntoResult;
-use async_process::Command;
 use std::io;
+use tokio::process::Command;
 
 #[derive(AsMut, Deref, DerefMut)]
 #[as_mut(forward)]

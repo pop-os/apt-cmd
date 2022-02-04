@@ -1,12 +1,13 @@
-// Copyright 2021 System76 <info@system76.com>
+// Copyright 2021-2022 System76 <info@system76.com>
 // SPDX-License-Identifier: MPL-2.0
 
 use anyhow::Context;
-use async_process::{Child, Command, Stdio};
-use futures::io::BufReader;
-use futures::prelude::*;
 use futures::stream::{Stream, StreamExt};
 use std::pin::Pin;
+use std::process::Stdio;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::{Child, Command};
+use tokio_stream::wrappers::LinesStream;
 
 pub type Packages = Pin<Box<dyn Stream<Item = String>>>;
 
@@ -22,9 +23,7 @@ pub async fn upgradable_packages() -> anyhow::Result<(Child, Packages)> {
     let stdout = child.stdout.take().unwrap();
 
     let stream = Box::pin(async_stream::stream! {
-        let lines = BufReader::new(stdout).lines().skip(1);
-
-        futures_util::pin_mut!(lines);
+        let mut lines = LinesStream::new(BufReader::new(stdout).lines()).skip(1);
 
         while let Some(Ok(line)) = lines.next().await {
             if let Some(package) = line.split("/").next() {
@@ -51,7 +50,7 @@ pub async fn security_updates() -> anyhow::Result<(Child, Packages)> {
         .context("`apt` didn't have stdout pipe")?;
 
     let stream = Box::pin(async_stream::stream! {
-        let mut lines = BufReader::new(stdout).lines().skip(1);
+        let mut lines = LinesStream::new(BufReader::new(stdout).lines()).skip(1);
 
         while let Some(Ok(line)) = lines.next().await {
             if let Some(package) = parse_security_update(&line) {

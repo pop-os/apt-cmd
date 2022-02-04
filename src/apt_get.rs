@@ -1,16 +1,15 @@
-// Copyright 2021 System76 <info@system76.com>
+// Copyright 2021-2022 System76 <info@system76.com>
 // SPDX-License-Identifier: MPL-2.0
 
 use crate::request::{Request, RequestError};
 use crate::AptUpgradeEvent;
 use as_result::*;
-use async_process::{Child, ChildStdout, Command, ExitStatus};
 use async_stream::stream;
-use futures::io::BufReader;
 use futures::prelude::*;
-use futures::stream::StreamExt;
-use futures_util::pin_mut;
+use std::process::ExitStatus;
 use std::{collections::HashSet, io, pin::Pin};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::{Child, ChildStdout, Command};
 
 #[derive(Debug)]
 pub enum UpdateEvent {
@@ -133,11 +132,9 @@ impl AptGet {
         let (child, stdout) = self.spawn_with_stdout().await?;
 
         let stream = stream! {
-            let stdout = BufReader::new(stdout).lines();
+            let mut stdout = BufReader::new(stdout).lines();
 
-            pin_mut!(stdout);
-
-            while let Some(Ok(line)) = stdout.next().await {
+            while let Ok(Some(line)) = stdout.next_line().await {
                 if let Ok(event) = line.parse::<AptUpgradeEvent>() {
                     yield event;
                 }
@@ -167,13 +164,11 @@ impl AptGet {
 
         let (mut child, stdout) = self.spawn_with_stdout().await?;
 
-        let stdout = BufReader::new(stdout).lines();
-
-        pin_mut!(stdout);
+        let mut stdout = BufReader::new(stdout).lines();
 
         let mut packages = HashSet::new();
 
-        while let Some(Ok(line)) = stdout.next().await {
+        while let Ok(Some(line)) = stdout.next_line().await {
             if !line.starts_with('\'') {
                 continue;
             }
@@ -186,7 +181,7 @@ impl AptGet {
             packages.insert(package);
         }
 
-        child.status().await.map_result()?;
+        child.wait().await.map_result()?;
 
         Ok(Ok(packages))
     }
@@ -196,11 +191,10 @@ impl AptGet {
 
         let (mut child, stdout) = self.spawn_with_stdout().await?;
 
-        let stdout = BufReader::new(stdout).lines();
+        let mut stdout = BufReader::new(stdout).lines();
 
         let stream = stream! {
-            pin_mut!(stdout);
-            while let Some(Ok(line)) = stdout.next().await {
+            while let Ok(Some(line)) = stdout.next_line().await {
                 if line.starts_with("Err") {
                     let mut fields = line.split_ascii_whitespace();
                     let _ = fields.next();
@@ -214,7 +208,7 @@ impl AptGet {
                 }
             }
 
-            yield UpdateEvent::ExitStatus(child.status().await);
+            yield UpdateEvent::ExitStatus(child.wait().await);
         };
 
         Ok(Box::pin(stream))

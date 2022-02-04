@@ -1,14 +1,14 @@
-// Copyright 2021 System76 <info@system76.com>
+// Copyright 2021-2022 System76 <info@system76.com>
 // SPDX-License-Identifier: MPL-2.0
 
 use anyhow::Context;
 use as_result::{IntoResult, MapResult};
-use async_process::{Child, ChildStdout, Command};
-use futures::io::BufReader;
-use futures::prelude::*;
 use futures::stream::{Stream, StreamExt};
 use std::io;
 use std::pin::Pin;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
+use tokio::process::{Child, ChildStdout, Command};
+use tokio_stream::wrappers::LinesStream;
 
 pub type PackageStream = Pin<Box<dyn Stream<Item = String>>>;
 
@@ -100,7 +100,9 @@ impl AptCache {
 
         let (child, stdout) = self.spawn_with_stdout().await?;
 
-        let stream = Box::pin(policies(BufReader::new(stdout).lines()));
+        let lines = LinesStream::new(BufReader::new(stdout).lines());
+
+        let stream = Box::pin(policies(lines));
 
         Ok((child, stream))
     }
@@ -120,7 +122,7 @@ impl AptCache {
         }
 
         child
-            .status()
+            .wait()
             .await
             .map_result()
             .with_context(|| format!("bad status from `apt-cache rdepends {}`", package))?;
@@ -135,7 +137,7 @@ impl AptCache {
             .await
             .with_context(|| format!("failed to get output of `apt-cache depends {}`", package))?;
 
-        child.status().await.map_result()?;
+        child.wait().await.map_result()?;
 
         Ok(PreDependsIter::new(out.as_str(), package)?.collect::<Vec<_>>())
     }
@@ -143,7 +145,7 @@ impl AptCache {
     async fn stream_packages(self) -> io::Result<(Child, PackageStream)> {
         let (child, stdout) = self.spawn_with_stdout().await?;
 
-        let mut lines = BufReader::new(stdout).lines().skip(2);
+        let mut lines = LinesStream::new(BufReader::new(stdout).lines()).skip(2);
 
         let stream = async_stream::stream! {
             while let Some(Ok(package)) = lines.next().await {

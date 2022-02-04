@@ -1,13 +1,15 @@
-// Copyright 2021 System76 <info@system76.com>
+// Copyright 2021-2022 System76 <info@system76.com>
 // SPDX-License-Identifier: MPL-2.0
 
 use crate::request::Request as AptRequest;
 
-use async_io::Timer;
 use futures::stream::{Stream, StreamExt};
 use isahc::http::Request;
 use std::{io, path::Path, pin::Pin, sync::Arc, time::Duration};
 use thiserror::Error;
+use tokio::fs::File;
+use tokio::sync::{mpsc, Barrier};
+use tokio::time::sleep;
 
 pub type FetchEvents = Pin<Box<dyn Stream<Item = FetchEvent>>>;
 
@@ -101,8 +103,11 @@ impl PackageFetcher {
         packages: impl Stream<Item = Arc<AptRequest>> + Send + 'static,
         partial: Arc<Path>,
         destination: Arc<Path>,
-    ) -> FetchEvents {
-        let (tx, rx) = flume::bounded(0);
+    ) -> (
+        impl std::future::Future<Output = ()> + Send + 'static,
+        mpsc::Receiver<FetchEvent>,
+    ) {
+        let (tx, rx) = mpsc::channel(1);
 
         let Self {
             client,
@@ -113,7 +118,7 @@ impl PackageFetcher {
 
         let client = Arc::new(client);
 
-        let barrier = Arc::new(async_barrier::Barrier::new(1));
+        let barrier = Arc::new(Barrier::new(1));
 
         let fetcher =
             packages.for_each_concurrent(Some(concurrent), move |uri: Arc<AptRequest>| {
@@ -123,7 +128,7 @@ impl PackageFetcher {
                 let tx = tx.clone();
                 let barrier = barrier.clone();
 
-                smolscale::spawn(async move {
+                async move {
                     let event_process = || async {
                         let _ = tx.send(FetchEvent::new(uri.clone(), EventKind::Fetching));
 
@@ -131,7 +136,7 @@ impl PackageFetcher {
                         // Prevents us from hammering the servers on release day.
                         if let Some(delay) = delay {
                             let guard = barrier.wait().await;
-                            Timer::after(Duration::from_millis(delay)).await;
+                            sleep(Duration::from_millis(delay)).await;
                             drop(guard);
                         }
 
@@ -152,27 +157,43 @@ impl PackageFetcher {
 
                         let partial_file = partial.join(&uri.name);
 
-                        let mut file = async_fs::File::create(&partial_file)
+                        let mut file = File::create(&partial_file)
                             .await
                             .map_err(|why| EventKind::Error(FetchError::Create(why)))?;
 
-                        futures::io::copy(resp.body_mut(), &mut file)
+                        use tokio_util::compat::FuturesAsyncReadCompatExt;
+
+                        tokio::io::copy(&mut resp.body_mut().compat(), &mut file)
                             .await
                             .map_err(|why| EventKind::Error(FetchError::Copy(why)))?;
 
-                        let _ = tx.send(FetchEvent::new(uri.clone(), EventKind::Fetched));
+                        let _ = tx
+                            .send(FetchEvent::new(uri.clone(), EventKind::Fetched))
+                            .await;
 
-                        crate::hash::compare_hash(&partial_file, uri.size, &uri.checksum)
+                        // Perform checksum validation from a background thread.
+                        let tx = tx.clone();
+                        let uri = uri.clone();
+                        let destination = destination.clone();
+                        let validation_future = tokio::task::spawn_blocking(|| {
+                            futures::executor::block_on(async move {
+                                crate::hash::compare_hash(&partial_file, uri.size, &uri.checksum)
+                                    .map_err(|why| EventKind::Error(FetchError::InvalidHash(why)))?;
+
+                                let _ = tx
+                                    .send(FetchEvent::new(uri.clone(), EventKind::Validated))
+                                    .await;
+
+                                std::fs::rename(&partial_file, &destination.join(&uri.name))
+                                    .map_err(|why| EventKind::Error(FetchError::Rename(why)))?;
+
+                                Ok(())
+                            })
+                        });
+
+                        validation_future
                             .await
-                            .map_err(|why| EventKind::Error(FetchError::InvalidHash(why)))?;
-
-                        let _ = tx.send(FetchEvent::new(uri.clone(), EventKind::Validated));
-
-                        async_fs::rename(&partial_file, &destination.join(&uri.name))
-                            .await
-                            .map_err(|why| EventKind::Error(FetchError::Rename(why)))?;
-
-                        Ok(())
+                            .expect("failed to join tokio spawn_blocking of compare_hash")
                     };
 
                     let mut attempts = 0;
@@ -180,7 +201,7 @@ impl PackageFetcher {
                     loop {
                         if let Err(why) = event_process().await {
                             if attempts == retries {
-                                let _ = tx.send(FetchEvent::new(uri.clone(), why));
+                                let _ = tx.send(FetchEvent::new(uri.clone(), why)).await;
                                 break;
                             }
 
@@ -190,11 +211,9 @@ impl PackageFetcher {
 
                         break;
                     }
-                })
+                }
             });
 
-        smolscale::spawn(fetcher).detach();
-
-        Box::pin(rx.into_stream())
+        (fetcher, rx)
     }
 }

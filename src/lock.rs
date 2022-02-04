@@ -1,12 +1,12 @@
-// Copyright 2021 System76 <info@system76.com>
+// Copyright 2021-2022 System76 <info@system76.com>
 // SPDX-License-Identifier: MPL-2.0
 
-use async_io::Timer;
 use async_stream::stream;
 use futures::stream::{Stream, StreamExt};
 use futures_util::pin_mut;
 use std::path::Path;
 use std::time::Duration;
+use tokio::time::sleep;
 
 const LISTS_LOCK: &str = "/var/lib/apt/lists/lock";
 const DPKG_LOCK: &str = "/var/lib/dpkg/lock";
@@ -31,7 +31,7 @@ pub fn apt_lock_watch() -> impl Stream<Item = AptLockEvent> {
         if (waiting) {
             yield AptLockEvent::Locked;
             while waiting {
-                Timer::after(Duration::from_secs(3)).await;
+                sleep(Duration::from_secs(3)).await;
                 waiting = apt_lock_found(paths);
             }
         }

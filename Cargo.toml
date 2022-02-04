@@ -1,22 +1,17 @@
 [package]
 name = "apt-cmd"
 description = "Async library for interacting with apt commands"
-version = "0.3.0"
+version = "0.4.0"
 license = "MPL-2.0"
+keywords = ["apt", "async", "tokio", "debian"]
 authors = ["Michael Aaron Murphy <mmstick@pm.me>"]
 edition = "2018"
 
 [dependencies]
-anyhow = "1.0.52"
+anyhow = "1.0.53"
 as-result = "0.2.1"
-async-barrier = "1.1.0"
-async-fs = "1.5.0"
-async-io = "1.6.0"
-async-process = "1.3.0"
 async-stream = "0.3.2"
-async-task = "4.0.3"
 derive_more = "0.99.17"
-flume = "0.10.9"
 futures = "0.3.19"
 futures-util = "0.3.19"
 hex = "0.4.3"
@@ -24,8 +19,22 @@ isahc = "1.6.0"
 md-5 = "0.10.0"
 procfs = "0.12.0"
 sha-1 = "0.10.0"
-smolscale = "0.3.16"
 thiserror = "1.0.30"
 
-[dev-dependencies]
-anyhow = "1.0.52"
+[dependencies.tokio]
+version = "1.16.1"
+features = ["fs", "io-util", "process", "rt", "sync", "time"]
+
+[dependencies.tokio-stream]
+version = "0.1.8"
+features = ["io-util"]
+
+[dependencies.tokio-util]
+version = "0.6.9"
+features = ["compat"]
+
+[dev-dependencies.tokio]
+version = "1.16.1"
+features = ["full"]
+
+[features]
