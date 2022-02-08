@@ -19,7 +19,9 @@ md-5 = "0.10.0"
 procfs = "0.12.0"
 sha-1 = "0.10.0"
 thiserror = "1.0.30"
-async-fetcher = "0.7.0"
+
+[dependencies.async-fetcher]
+git = "https://github.com/pop-os/async-fetcher"
 
 [dependencies.tokio]
 version = "1.16.1"
