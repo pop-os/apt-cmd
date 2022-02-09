@@ -38,6 +38,9 @@ fn policies(lines: impl Stream<Item = io::Result<String>>) -> impl Stream<Item =
 
             if !line.starts_with(' ') {
                 policy.package = line;
+                if policy.package.ends_with(':') {
+                    policy.package.truncate(policy.package.len() - 1);
+                }
                 continue
             }
 
