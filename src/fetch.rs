@@ -111,16 +111,13 @@ impl PackageFetcher {
             )
         });
 
+        
+
         let mut fetch_results = self
             .fetcher
             .events(events_tx)
             .build()
-            .requests_stream(input_stream)
-            .buffer_unordered(if self.concurrent > 0 {
-                self.concurrent
-            } else {
-                1
-            });
+            .stream_from(input_stream, self.concurrent.min(1));
 
         let event_handler = {
             let tx = tx.clone();
