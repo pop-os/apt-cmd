@@ -92,6 +92,7 @@ impl PackageFetcher {
 
     pub fn fetch(
         self,
+        shutdown: async_shutdown::Shutdown,
         packages: impl Stream<Item = Arc<AptRequest>> + Send + Unpin + 'static,
         destination: Arc<Path>,
     ) -> (
@@ -111,13 +112,11 @@ impl PackageFetcher {
             )
         });
 
-        
-
         let mut fetch_results = self
             .fetcher
             .events(events_tx)
             .build()
-            .stream_from(input_stream, self.concurrent.min(1));
+            .stream_from(shutdown, input_stream, self.concurrent.min(1));
 
         let event_handler = {
             let tx = tx.clone();

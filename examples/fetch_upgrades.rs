@@ -19,10 +19,12 @@ async fn main() -> anyhow::Result<()> {
         tokio::fs::create_dir_all(path).await.unwrap();
     }
 
+    let shutdown = async_shutdown::Shutdown::new();
+
     let (fetcher, mut events) = PackageFetcher::default()
         .concurrent(CONCURRENT_FETCHES)
         .connections_per_file(4)
-        .fetch(packages, Arc::from(path));
+        .fetch(shutdown.clone(), packages, Arc::from(path));
 
     // Fetch a list of packages that need to be fetched, and send them on their way
     let sender = async move {
