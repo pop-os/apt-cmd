@@ -1,6 +1,6 @@
 use anyhow::Context;
 use apt_cmd::{
-    fetch::{EventKind, PackageFetcher},
+    fetch::{EventKind, FetcherExt},
     AptGet,
 };
 
@@ -19,12 +19,11 @@ async fn main() -> anyhow::Result<()> {
         tokio::fs::create_dir_all(path).await.unwrap();
     }
 
-    let shutdown = async_shutdown::Shutdown::new();
-
-    let (fetcher, mut events) = PackageFetcher::default()
-        .concurrent(CONCURRENT_FETCHES)
+    let (fetcher, mut events) = async_fetcher::Fetcher::default()
         .connections_per_file(4)
-        .fetch(shutdown.clone(), packages, Arc::from(path));
+        .into_package_fetcher()
+        .concurrent(CONCURRENT_FETCHES)
+        .fetch(packages, Arc::from(path));
 
     // Fetch a list of packages that need to be fetched, and send them on their way
     let sender = async move {

@@ -65,6 +65,22 @@ pub struct PackageFetcher {
     concurrent: usize,
 }
 
+pub trait FetcherExt {
+    fn into_package_fetcher(self) -> PackageFetcher;
+}
+
+impl FetcherExt for Fetcher<AptRequest> {
+    fn into_package_fetcher(self) -> PackageFetcher {
+        PackageFetcher::from(self)
+    }
+}
+
+impl From<Fetcher<AptRequest>> for PackageFetcher {
+    fn from(fetcher: Fetcher<AptRequest>) -> Self {
+        PackageFetcher::new(fetcher)
+    }
+}
+
 impl PackageFetcher {
     pub fn new(fetcher: Fetcher<AptRequest>) -> Self {
         Self {
@@ -73,26 +89,13 @@ impl PackageFetcher {
         }
     }
 
-    pub fn connections_per_file(mut self, connections: u16) -> Self {
-        self.fetcher = self
-            .fetcher
-            .connections_per_file(connections);
-        self
-    }
-
     pub fn concurrent(mut self, concurrent: usize) -> Self {
         self.concurrent = concurrent;
         self
     }
 
-    pub fn retries(mut self, retries: u16) -> Self {
-        self.fetcher = self.fetcher.retries(retries);
-        self
-    }
-
     pub fn fetch(
         self,
-        shutdown: async_shutdown::Shutdown,
         packages: impl Stream<Item = Arc<AptRequest>> + Send + Unpin + 'static,
         destination: Arc<Path>,
     ) -> (
@@ -116,7 +119,7 @@ impl PackageFetcher {
             .fetcher
             .events(events_tx)
             .build()
-            .stream_from(shutdown, input_stream, self.concurrent.min(1));
+            .stream_from(input_stream, self.concurrent.min(1));
 
         let event_handler = {
             let tx = tx.clone();
