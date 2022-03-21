@@ -22,7 +22,6 @@ async-shutdown = "0.1.2"
 
 [dependencies.async-fetcher]
 git = "https://github.com/pop-os/async-fetcher"
-branch = "dev"
 
 [dependencies.tokio]
 version = "1.16.1"
