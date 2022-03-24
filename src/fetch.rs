@@ -37,6 +37,9 @@ pub enum EventKind {
 
     /// The package has been validated
     Validated,
+
+    // Package is being retried
+    Retrying,
 }
 
 #[derive(Debug, Error)]
@@ -157,6 +160,10 @@ impl PackageFetcher {
 
                                 let _ = tx.send(FetchEvent::new(package, event));
                             });
+                        }
+
+                        async_fetcher::FetchEvent::Retrying => {
+                            let _ = tx.send(FetchEvent::new(package, EventKind::Retrying));
                         }
 
                         _ => (),
