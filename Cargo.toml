@@ -8,13 +8,13 @@ authors = ["Michael Aaron Murphy <mmstick@pm.me>"]
 edition = "2018"
 
 [dependencies]
-anyhow = "1.0.53"
+anyhow = "1.0.56"
 as-result = "0.2.1"
-async-stream = "0.3.2"
+async-stream = "0.3.3"
 derive_more = "0.99.17"
 futures = "0.3.21"
 hex = "0.4.3"
-md-5 = "0.10.0"
+md-5 = "0.10.1"
 procfs = "0.12.0"
 sha-1 = "0.10.0"
 thiserror = "1.0.30"
@@ -24,7 +24,7 @@ async-shutdown = "0.1.2"
 git = "https://github.com/pop-os/async-fetcher"
 
 [dependencies.tokio]
-version = "1.16.1"
+version = "1.17.0"
 features = ["fs", "io-util", "process", "rt", "sync", "time"]
 
 [dependencies.tokio-stream]
@@ -36,7 +36,7 @@ version = "0.7.0"
 features = ["compat"]
 
 [dev-dependencies.tokio]
-version = "1.16.1"
+version = "1.17.0"
 features = ["full"]
 
 [features]
