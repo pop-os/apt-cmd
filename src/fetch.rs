@@ -142,7 +142,7 @@ impl PackageFetcher {
                             let _ = tx.send(FetchEvent::new(package.clone(), EventKind::Fetched));
                             let tx = tx.clone();
 
-                            tokio::task::spawn_blocking(move || {
+                            rayon::spawn(move || {
                                 let event = match crate::hash::compare_hash(
                                     &dest,
                                     package.size,
