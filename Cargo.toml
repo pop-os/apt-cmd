@@ -19,7 +19,7 @@ procfs = "0.12.0"
 sha-1 = "0.10.0"
 thiserror = "1.0.30"
 async-shutdown = "0.1.2"
-rayon = "1.5.1"
+rayon = "1.5.2"
 
 [dependencies.async-fetcher]
 git = "https://github.com/pop-os/async-fetcher"
@@ -33,7 +33,7 @@ version = "0.1.8"
 features = ["io-util"]
 
 [dependencies.tokio-util]
-version = "0.7.0"
+version = "0.7.1"
 features = ["compat"]
 
 [dev-dependencies.tokio]

@@ -129,11 +129,6 @@ impl PackageFetcher {
             async move {
                 while let Some((dest, package, event)) = events_rx.recv().await {
                     match event {
-                        async_fetcher::FetchEvent::AlreadyFetched => {
-                            let _ = tx.send(FetchEvent::new(package.clone(), EventKind::Fetched));
-                            let _ = tx.send(FetchEvent::new(package, EventKind::Validated));
-                        }
-
                         async_fetcher::FetchEvent::Fetching => {
                             let _ = tx.send(FetchEvent::new(package, EventKind::Fetching));
                         }
