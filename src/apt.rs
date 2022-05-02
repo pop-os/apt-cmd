@@ -11,6 +11,33 @@ use tokio_stream::wrappers::LinesStream;
 
 pub type Packages = Pin<Box<dyn Stream<Item = String>>>;
 
+/// Locates all packages which do not belong to a repository
+pub async fn remoteless_packages() -> anyhow::Result<Vec<String>> {
+    let manually_installed = crate::AptMark::new().manually_installed().await?;
+    let (mut child, mut stream) = crate::AptCache::new().policy(&manually_installed).await?;
+
+    let mut packages = Vec::new();
+
+    'outer: while let Some(policy) = stream.next().await {
+        for sources in policy.version_table.values() {
+            for source in sources {
+                if !source.contains("/var/lib/dpkg/status") {
+                    continue 'outer;
+                }
+            }
+        }
+
+        packages.push(policy.package);
+    }
+
+    let _ = child
+        .wait()
+        .await
+        .context("`apt-cache policy` exited in error")?;
+
+    Ok(packages)
+}
+
 /// Fetch all upgradeable debian packages from system apt repositories.
 pub async fn upgradable_packages() -> anyhow::Result<(Child, Packages)> {
     let mut child = Command::new("apt")

@@ -4,6 +4,7 @@
 use anyhow::Context;
 use as_result::{IntoResult, MapResult};
 use futures::stream::{Stream, StreamExt};
+use std::collections::HashMap;
 use std::io;
 use std::pin::Pin;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
@@ -17,18 +18,20 @@ pub struct Policy {
     pub package: String,
     pub installed: String,
     pub candidate: String,
+    pub version_table: HashMap<String, Vec<String>>,
 }
 
 pub type Policies = Pin<Box<dyn Stream<Item = Policy>>>;
 
-fn policies(lines: impl Stream<Item = io::Result<String>>) -> impl Stream<Item = Policy> {
+pub fn policies(lines: impl Stream<Item = io::Result<String>>) -> impl Stream<Item = Policy> {
     async_stream::stream! {
         futures::pin_mut!(lines);
 
         let mut policy = Policy {
             package: String::new(),
             installed: String::new(),
-            candidate: String::new()
+            candidate: String::new(),
+            version_table: HashMap::new()
         };
 
         while let Some(Ok(line)) = lines.next().await {
@@ -54,10 +57,34 @@ fn policies(lines: impl Stream<Item = io::Result<String>>) -> impl Stream<Item =
                 if let Some(v) = line.split_ascii_whitespace().nth(1) {
                     policy.candidate = v.to_owned();
                 }
+            } else if line.starts_with("V") {
+                // Start parsing the version table
+                let mut current_version = String::from("unknown");
+                while let Some(Ok(line)) = lines.next().await {
 
-                yield policy.clone();
+
+                    if let Some(source) = line.strip_prefix("      ") {
+                        policy.version_table.entry(current_version.clone())
+                            .or_insert_with(Vec::new)
+                            .push(source.trim().to_owned());
+                    } else if let Some(version) = line.strip_prefix(" *** ") {
+                        current_version = version.trim().to_owned();
+                    } else if let Some(version) = line.strip_prefix("   ") {
+                        current_version = version.trim().to_owned();
+                    } else {
+                        yield policy.clone();
+                        policy.version_table.clear();
+                        policy.package = line;
+                        if policy.package.ends_with(':') {
+                            policy.package.truncate(policy.package.len() - 1);
+                        }
+                        break
+                    }
+                }
             }
         }
+
+        yield policy;
     }
 }
 
@@ -93,9 +120,9 @@ impl AptCache {
         self.stream_packages().await
     }
 
-    pub async fn policy<'a>(
+    pub async fn policy<S: AsRef<std::ffi::OsStr>>(
         mut self,
-        packages: &'a [&'a str],
+        packages: &[S],
     ) -> anyhow::Result<(Child, Policies)> {
         self.arg("policy");
         self.args(packages);
