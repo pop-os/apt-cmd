@@ -13,8 +13,8 @@ pub type Packages = Pin<Box<dyn Stream<Item = String>>>;
 
 /// Locates all packages which do not belong to a repository
 pub async fn remoteless_packages() -> anyhow::Result<Vec<String>> {
-    let manually_installed = crate::AptMark::new().manually_installed().await?;
-    let (mut child, mut stream) = crate::AptCache::new().policy(&manually_installed).await?;
+    let installed = crate::AptMark::installed().await?;
+    let (mut child, mut stream) = crate::AptCache::new().policy(&installed).await?;
 
     let mut packages = Vec::new();
 
