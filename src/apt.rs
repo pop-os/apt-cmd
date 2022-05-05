@@ -3,6 +3,8 @@
 
 use anyhow::Context;
 use futures::stream::{Stream, StreamExt};
+use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::pin::Pin;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -10,6 +12,74 @@ use tokio::process::{Child, Command};
 use tokio_stream::wrappers::LinesStream;
 
 pub type Packages = Pin<Box<dyn Stream<Item = String>>>;
+
+/// It is orphaned if the only source is `/var/lib/dpkg/status`.
+fn is_orphaned_version(sources: &[String]) -> bool {
+    sources.len() == 1 && sources[0].contains("/var/lib/dpkg/status")
+}
+
+/// The version of the package installed which has no repository.
+fn orphaned_version(version_table: &HashMap<String, Vec<String>>) -> Option<&str> {
+    for (status, sources) in version_table {
+        if is_orphaned_version(sources) {
+            return Some(status.as_str());
+        }
+    }
+
+    None
+}
+
+/// A list of package versions associated with a repository.
+fn repository_versions(version_table: &HashMap<String, Vec<String>>) -> impl Iterator<Item = &str> {
+    version_table.iter().filter_map(|(version, sources)| {
+        if is_orphaned_version(sources) {
+            None
+        } else {
+            Some(version.as_str())
+        }
+    })
+}
+
+fn greatest_repository_version(version_table: &HashMap<String, Vec<String>>) -> Option<&str> {
+    let mut iterator = repository_versions(version_table);
+    if let Some(mut greatest_nonlocal) = iterator.next() {
+        for nonlocal in iterator {
+            if let Ordering::Less = deb_version::compare_versions(greatest_nonlocal, nonlocal) {
+                greatest_nonlocal = nonlocal;
+            }
+        }
+
+        return Some(greatest_nonlocal);
+    }
+
+    None
+}
+
+// Locates packages which can be downgraded.
+pub async fn downgradable_packages() -> anyhow::Result<Vec<(String, String)>> {
+    let installed = crate::AptMark::installed().await?;
+    let (mut child, mut stream) = crate::AptCache::new().policy(&installed).await?;
+
+    let mut packages = Vec::new();
+
+    'outer: while let Some(policy) = stream.next().await {
+        if let Some(local) = orphaned_version(&policy.version_table) {
+            if let Some(nonlocal) = greatest_repository_version(&policy.version_table) {
+                if let Ordering::Greater = deb_version::compare_versions(local, nonlocal) {
+                    packages.push((policy.package, nonlocal.to_owned()));
+                    continue 'outer;
+                }
+            }
+        }
+    }
+
+    let _ = child
+        .wait()
+        .await
+        .context("`apt-cache policy` exited in error")?;
+
+    Ok(packages)
+}
 
 /// Locates all packages which do not belong to a repository
 pub async fn remoteless_packages() -> anyhow::Result<Vec<String>> {
@@ -20,10 +90,8 @@ pub async fn remoteless_packages() -> anyhow::Result<Vec<String>> {
 
     'outer: while let Some(policy) = stream.next().await {
         for sources in policy.version_table.values() {
-            for source in sources {
-                if !source.contains("/var/lib/dpkg/status") {
-                    continue 'outer;
-                }
+            if !is_orphaned_version(sources) {
+                continue 'outer;
             }
         }
 
