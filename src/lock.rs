@@ -39,6 +39,7 @@ pub fn apt_lock_watch() -> impl Stream<Item = AptLockEvent> {
     }
 }
 
+#[must_use]
 pub fn apt_lock_found(paths: &[&Path]) -> bool {
     use procfs::process::{all_processes, FDTarget};
 
@@ -47,13 +48,15 @@ pub fn apt_lock_found(paths: &[&Path]) -> bool {
         Err(_) => return false,
     };
 
-    for proc in processes {
-        if let Ok(fdinfos) = proc.fd() {
-            for fdinfo in fdinfos {
-                if let FDTarget::Path(path) = fdinfo.target {
-                    if paths.iter().any(|&p| &*path == p) {
-                        return true;
-                    }
+    for proc in processes.filter_map(Result::ok) {
+        let Ok(fdinfos) = proc.fd() else {
+            continue
+        };
+
+        for fdinfo in fdinfos.filter_map(Result::ok) {
+            if let FDTarget::Path(path) = fdinfo.target {
+                if paths.iter().any(|&p| &*path == p) {
+                    return true;
                 }
             }
         }
