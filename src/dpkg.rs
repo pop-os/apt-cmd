@@ -31,7 +31,7 @@ impl Dpkg {
     }
 
     pub fn configure_all(mut self) -> Self {
-        self.args(&["--configure", "-a"]);
+        self.args(["--configure", "-a"]);
         self
     }
 
@@ -59,7 +59,7 @@ impl DpkgQuery {
         I: IntoIterator<Item = S>,
         S: AsRef<std::ffi::OsStr>,
     {
-        self.args(&["--show", "--showformat=${Package} ${db:Status-Status}\n"]);
+        self.args(["--show", "--showformat=${Package} ${db:Status-Status}\n"]);
         self.args(packages);
 
         let (child, stdout) = self.spawn_with_stdout().await?;
