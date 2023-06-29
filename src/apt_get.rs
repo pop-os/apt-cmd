@@ -48,12 +48,12 @@ impl AptGet {
     }
 
     pub fn dpkg_option(mut self, option: &str) -> Self {
-        self.args(&["-o", &["Dpkg::Options::=", option].concat()]);
+        self.args(["-o", &["Dpkg::Options::=", option].concat()]);
         self
     }
 
     pub fn fix_broken(mut self) -> Self {
-        self.args(&["install", "-f"]);
+        self.args(["install", "-f"]);
         self
     }
 
@@ -127,7 +127,7 @@ impl AptGet {
     }
 
     pub async fn stream_upgrade(mut self) -> io::Result<(Child, UpgradeEvents)> {
-        self.args(&["--show-progress", "full-upgrade"]);
+        self.args(["--show-progress", "full-upgrade"]);
 
         let (child, stdout) = self.spawn_with_stdout().await?;
 

@@ -109,7 +109,7 @@ pub async fn remoteless_packages() -> anyhow::Result<Vec<String>> {
 /// Fetch all upgradeable debian packages from system apt repositories.
 pub async fn upgradable_packages() -> anyhow::Result<(Child, Packages)> {
     let mut child = Command::new("apt")
-        .args(&["list", "--upgradable"])
+        .args(["list", "--upgradable"])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
@@ -121,7 +121,7 @@ pub async fn upgradable_packages() -> anyhow::Result<(Child, Packages)> {
         let mut lines = LinesStream::new(BufReader::new(stdout).lines()).skip(1);
 
         while let Some(Ok(line)) = lines.next().await {
-            if let Some(package) = line.split("/").next() {
+            if let Some(package) = line.split('/').next() {
                 yield package.into();
             }
         }
@@ -133,7 +133,7 @@ pub async fn upgradable_packages() -> anyhow::Result<(Child, Packages)> {
 /// Fetch debian packages which are necessary security updates, only.
 pub async fn security_updates() -> anyhow::Result<(Child, Packages)> {
     let mut child = Command::new("apt")
-        .args(&["-s", "dist-upgrade"])
+        .args(["-s", "dist-upgrade"])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
