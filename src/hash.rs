@@ -50,7 +50,7 @@ pub fn compare_hash(
 
     match expected_hash {
         RequestChecksum::Sha1(sum) => {
-            let expected = <[u8; 20]>::from_hex(&*sum)
+            let expected = <[u8; 20]>::from_hex(sum)
                 .map(GenericArray::from)
                 .map_err(|_| ChecksumError::InvalidInput(format!("SHA1 {}", sum)))?;
 
@@ -74,7 +74,7 @@ pub fn compare_hash(
             }
         }
         RequestChecksum::Md5(sum) => {
-            let expected = <[u8; 16]>::from_hex(&*sum)
+            let expected = <[u8; 16]>::from_hex(sum)
                 .map(GenericArray::from)
                 .map_err(|_| ChecksumError::InvalidInput(format!("MD5 {}", sum)))?;
 
