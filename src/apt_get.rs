@@ -23,7 +23,7 @@ pub struct BadPPA {
     pub pocket: String,
 }
 
-pub type UpgradeEvents = Pin<Box<dyn Stream<Item = AptUpgradeEvent>>>;
+pub type UpgradeEvents = Pin<Box<dyn Stream<Item = AptUpgradeEvent> + Send>>;
 
 #[derive(AsMut, Deref, DerefMut)]
 #[as_mut(forward)]
@@ -186,7 +186,7 @@ impl AptGet {
         Ok(Ok(packages))
     }
 
-    pub async fn stream_update(mut self) -> io::Result<Pin<Box<dyn Stream<Item = UpdateEvent>>>> {
+    pub async fn stream_update(mut self) -> io::Result<Pin<Box<dyn Stream<Item = UpdateEvent> + Send>>> {
         self.arg("update");
 
         let (mut child, stdout) = self.spawn_with_stdout().await?;
