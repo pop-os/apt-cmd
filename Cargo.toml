@@ -42,3 +42,5 @@ version = "1.21.2"
 features = ["full"]
 
 [features]
+isahc = ["async-fetcher/isahc"]
+reqwest = ["async-fetcher/reqwest"]
