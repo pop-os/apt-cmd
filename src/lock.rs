@@ -27,7 +27,7 @@ pub fn apt_lock_watch() -> impl Stream<Item = AptLockEvent> {
 
         let mut waiting = apt_lock_found(paths);
 
-        if (waiting) {
+        if waiting {
             yield AptLockEvent::Locked;
             while waiting {
                 sleep(Duration::from_secs(3)).await;
