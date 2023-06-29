@@ -49,15 +49,15 @@ pub fn policies(lines: impl Stream<Item = io::Result<String>>) -> impl Stream<It
 
             let line = line.trim();
 
-            if line.starts_with("I") {
+            if line.starts_with('I') {
                 if let Some(v) = line.split_ascii_whitespace().nth(1) {
                     policy.installed = v.to_owned();
                 }
-            } else if line.starts_with("C") {
+            } else if line.starts_with('C') {
                 if let Some(v) = line.split_ascii_whitespace().nth(1) {
                     policy.candidate = v.to_owned();
                 }
-            } else if line.starts_with("V") {
+            } else if line.starts_with('V') {
                 // Start parsing the version table
                 let mut current_version = String::from("unknown");
                 while let Some(Ok(line)) = lines.next().await {

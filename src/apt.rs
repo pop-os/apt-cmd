@@ -121,7 +121,7 @@ pub async fn upgradable_packages() -> anyhow::Result<(Child, Packages)> {
         let mut lines = LinesStream::new(BufReader::new(stdout).lines()).skip(1);
 
         while let Some(Ok(line)) = lines.next().await {
-            if let Some(package) = line.split("/").next() {
+            if let Some(package) = line.split('/').next() {
                 yield package.into();
             }
         }
