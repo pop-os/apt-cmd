@@ -11,7 +11,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio_stream::wrappers::LinesStream;
 
-pub type Packages = Pin<Box<dyn Stream<Item = String>>>;
+pub type Packages = Pin<Box<dyn Stream<Item = String> + Send>>;
 
 /// It is orphaned if the only source is `/var/lib/dpkg/status`.
 fn is_orphaned_version(sources: &[String]) -> bool {
