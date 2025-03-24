@@ -67,10 +67,18 @@ pub fn policies(lines: impl Stream<Item = io::Result<String>>) -> impl Stream<It
                         policy.version_table.entry(current_version.clone())
                             .or_insert_with(Vec::new)
                             .push(source.trim().to_owned());
-                    } else if let Some(version) = line.strip_prefix(" *** ") {
-                        current_version = version.trim().to_owned();
-                    } else if let Some(version) = line.strip_prefix("   ") {
-                        current_version = version.trim().to_owned();
+                    } else if let Some(version_and_pin) = line.strip_prefix(" *** ") {
+                        let mut current_version_and_pin = version_and_pin.trim().split_whitespace();
+                        if let Some(version) = current_version_and_pin.next() {
+                            current_version = version.to_owned();
+                        }
+                        // TODO: Store & use pin.
+                    } else if let Some(version_and_pin) = line.strip_prefix("   ") {
+                        let mut current_version_and_pin = version_and_pin.trim().split_whitespace();
+                        if let Some(version) = current_version_and_pin.next() {
+                            current_version = version.to_owned();
+                        }
+                        // TODO: Store & use pin.
                     } else {
                         yield policy.clone();
                         policy.version_table.clear();
