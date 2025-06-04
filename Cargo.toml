@@ -18,10 +18,11 @@ futures = "0.3.30"
 hex = "0.4.3"
 md-5 = "0.10.6"
 procfs = "0.16.0"
-sha-1 = "0.10.1"
 thiserror = "1.0.60"
 rayon = "1.10.0"
 deb-version = "0.1.1"
+sha1 = "0.10.6"
+sha2 = "0.10.9"
 
 [dependencies.tokio]
 version = "1.37.0"
