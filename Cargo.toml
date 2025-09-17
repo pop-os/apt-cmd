@@ -1,7 +1,7 @@
 [package]
 name = "apt-cmd"
 description = "Async library for interacting with apt commands"
-version = "0.5.2"
+version = "0.6.0"
 license = "MPL-2.0"
 keywords = ["apt", "async", "tokio", "debian"]
 authors = ["Michael Aaron Murphy <mmstick@pm.me>"]
@@ -9,29 +9,29 @@ edition = "2018"
 repository = "https://github.com/pop-os/apt-cmd"
 
 [dependencies]
-anyhow = "1.0.83"
+anyhow = "1.0.99"
 as-result = "0.2.1"
-async-fetcher = "0.11.0"
-async-stream = "0.3.5"
-derive_more = "0.99.17"
-futures = "0.3.30"
+async-fetcher = "0.12.0"
+async-stream = "0.3.6"
+derive_more = { version = "2.0", features = ["full"] }
+futures = "0.3.31"
 hex = "0.4.3"
 md-5 = "0.10.6"
-procfs = "0.16.0"
-thiserror = "1.0.60"
-rayon = "1.10.0"
+procfs = "0.18.0"
+thiserror = "2.0"
+rayon = "1.11.0"
 deb-version = "0.1.1"
 sha1 = "0.10.6"
 sha2 = "0.10.9"
 
 [dependencies.tokio]
-version = "1.37.0"
+version = "1.47.1"
 features = ["fs", "io-util", "process", "rt", "sync", "time"]
 
 [dependencies.tokio-stream]
-version = "0.1.15"
+version = "0.1.17"
 features = ["io-util"]
 
 [dev-dependencies.tokio]
-version = "1.37.0"
+version = "1.47.1"
 features = ["full"]
