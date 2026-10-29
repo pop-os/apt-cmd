@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use hex::FromHex;
-use md5::{digest::generic_array::GenericArray, Digest, Md5};
+use md5::{
+    digest::array::{sizes, Array},
+    Digest, Md5,
+};
 use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 use std::{io, path::Path};
@@ -51,8 +54,8 @@ pub fn compare_hash(
 
     match expected_hash {
         RequestChecksum::Md5(sum) => {
-            let expected = <[u8; 16]>::from_hex(sum)
-                .map(GenericArray::from)
+            let expected: Array<u8, sizes::U16> = <[u8; 16]>::from_hex(sum)
+                .map(Array::from)
                 .map_err(|_| ChecksumError::InvalidInput(format!("MD5 {}", sum)))?;
 
             let mut buffer = vec![0u8; 8 * 1024];
@@ -75,8 +78,8 @@ pub fn compare_hash(
             }
         }
         RequestChecksum::Sha1(sum) => {
-            let expected = <[u8; 20]>::from_hex(sum)
-                .map(GenericArray::from)
+            let expected: Array<u8, sizes::U20> = <[u8; 20]>::from_hex(sum)
+                .map(Array::from)
                 .map_err(|_| ChecksumError::InvalidInput(format!("SHA1 {}", sum)))?;
 
             let mut buffer = vec![0u8; 8 * 1024];
@@ -99,8 +102,8 @@ pub fn compare_hash(
             }
         }
         RequestChecksum::Sha256(sum) => {
-            let expected = <[u8; 32]>::from_hex(sum)
-                .map(GenericArray::from)
+            let expected: Array<u8, sizes::U32> = <[u8; 32]>::from_hex(sum)
+                .map(Array::from)
                 .map_err(|_| ChecksumError::InvalidInput(format!("SHA256 {}", sum)))?;
 
             let mut buffer = vec![0u8; 8 * 1024];
@@ -123,8 +126,8 @@ pub fn compare_hash(
             }
         }
         RequestChecksum::Sha512(sum) => {
-            let expected = <[u8; 64]>::from_hex(sum)
-                .map(GenericArray::from)
+            let expected: Array<u8, sizes::U64> = <[u8; 64]>::from_hex(sum)
+                .map(Array::from)
                 .map_err(|_| ChecksumError::InvalidInput(format!("SHA512 {}", sum)))?;
 
             let mut buffer = vec![0u8; 8 * 1024];
